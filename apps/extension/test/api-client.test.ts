@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import type { GenerateRequest } from "@pinepilot/shared";
 import { ApiClient, ApiError } from "../src/lib/api-client.js";
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -90,5 +91,59 @@ describe("ApiClient.getMe", () => {
       message: "Unauthorized",
     });
     await expect(client.getMe("bad")).rejects.toBeInstanceOf(ApiError);
+  });
+});
+
+describe("ApiClient.generate", () => {
+  const generatePayload = {
+    title: "T",
+    summary: "S",
+    code: "//@version=6\nindicator('x')",
+    assumptions: [],
+    warnings: [],
+    usage: { requestsRemaining: 10 },
+  };
+  const request: GenerateRequest = {
+    prompt: "rsi",
+    taskType: "indicator",
+    pineVersion: "v6",
+    editorContext: { currentCode: "", compilerErrors: [] },
+  };
+
+  it("posts the request with a bearer token and returns the result", async () => {
+    const fetchFn = vi.fn(
+      async (_url: RequestInfo | URL, _init?: RequestInit) =>
+        jsonResponse(generatePayload),
+    );
+    const client = new ApiClient({ baseUrl: "http://api.test", fetchFn });
+
+    const result = await client.generate("access-token", request);
+
+    const [url, init] = fetchFn.mock.calls[0]!;
+    expect(url).toBe("http://api.test/v1/generate");
+    expect(init?.method).toBe("POST");
+    expect((init?.headers as Record<string, string>).authorization).toBe(
+      "Bearer access-token",
+    );
+    expect(JSON.parse(init?.body as string)).toEqual(request);
+    expect(result.code).toContain("@version=6");
+  });
+
+  it("maps quota responses to an ApiError flagged as quota", async () => {
+    const fetchFn = vi.fn(
+      async (_url: RequestInfo | URL, _init?: RequestInit) =>
+        jsonResponse(
+          { error: { message: "Quota exceeded", statusCode: 429 } },
+          429,
+        ),
+    );
+    const client = new ApiClient({ baseUrl: "http://api.test", fetchFn });
+
+    await expect(client.generate("t", request)).rejects.toMatchObject({
+      status: 429,
+    });
+    const err = await client.generate("t", request).catch((e) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect((err as ApiError).isQuota).toBe(true);
   });
 });

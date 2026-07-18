@@ -1,3 +1,4 @@
+import type { GenerateRequest, GenerateResponse } from "@pinepilot/shared";
 import type { AuthUser, TokenBundle } from "./types.js";
 
 export class ApiError extends Error {
@@ -8,18 +9,30 @@ export class ApiError extends Error {
     super(message);
     this.name = "ApiError";
   }
+
+  /** Whether this error represents a quota/usage-limit failure. */
+  get isQuota(): boolean {
+    return this.status === 402 || this.status === 429;
+  }
 }
 
 /**
- * Service boundary for backend auth calls. All network access to the PinePilot
- * API from the extension goes through this client (invoked only by the
- * background worker).
+ * Service boundary for backend calls. All network access to the PinePilot API
+ * from the extension goes through this client (invoked only by the background
+ * worker).
  */
-export interface AuthApi {
+export interface BackendApi {
   loginWithGoogle(idToken: string): Promise<TokenBundle>;
   refresh(refreshToken: string): Promise<TokenBundle>;
   getMe(accessToken: string): Promise<AuthUser>;
+  generate(
+    accessToken: string,
+    request: GenerateRequest,
+  ): Promise<GenerateResponse>;
 }
+
+/** @deprecated Prefer {@link BackendApi}; retained for existing imports. */
+export type AuthApi = BackendApi;
 
 export interface ApiClientOptions {
   baseUrl: string;
@@ -40,7 +53,7 @@ interface BackendAuthResponse {
   user: BackendUser;
 }
 
-export class ApiClient implements AuthApi {
+export class ApiClient implements BackendApi {
   private readonly baseUrl: string;
   private readonly fetchFn: typeof fetch;
 
@@ -73,6 +86,28 @@ export class ApiClient implements AuthApi {
       throw new ApiError(res.status, this.errorMessage(body, "GET /v1/me"));
     }
     return body as AuthUser;
+  }
+
+  async generate(
+    accessToken: string,
+    request: GenerateRequest,
+  ): Promise<GenerateResponse> {
+    const res = await this.fetchFn(`${this.baseUrl}/v1/generate`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify(request),
+    });
+    const body = await this.readBody(res);
+    if (!res.ok) {
+      throw new ApiError(
+        res.status,
+        this.errorMessage(body, "POST /v1/generate"),
+      );
+    }
+    return body as GenerateResponse;
   }
 
   private async post<T>(path: string, payload: unknown): Promise<T> {

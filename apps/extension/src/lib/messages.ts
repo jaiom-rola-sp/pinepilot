@@ -1,15 +1,17 @@
+import type { GenerateRequest, GenerateResponse } from "@pinepilot/shared";
 import type { AuthState, AuthUser } from "./types.js";
 
 /**
  * Typed contract for messages sent from UI/content contexts to the background
- * service worker. The background worker is the single owner of auth logic; all
- * other contexts communicate exclusively through these messages.
+ * service worker. The background worker is the single owner of auth logic and
+ * authenticated API calls; all other contexts communicate only via these.
  */
 export type BackgroundRequest =
   | { type: "AUTH_SIGN_IN" }
   | { type: "AUTH_SIGN_OUT" }
   | { type: "AUTH_GET_STATE" }
-  | { type: "AUTH_GET_ME" };
+  | { type: "AUTH_GET_ME" }
+  | { type: "API_GENERATE"; request: GenerateRequest };
 
 export type BackgroundRequestType = BackgroundRequest["type"];
 
@@ -19,10 +21,12 @@ export interface BackgroundResponseData {
   AUTH_SIGN_OUT: AuthState;
   AUTH_GET_STATE: AuthState;
   AUTH_GET_ME: AuthUser;
+  API_GENERATE: GenerateResponse;
 }
 
 export type BackgroundResponse<T extends BackgroundRequestType> =
-  { ok: true; data: BackgroundResponseData[T] } | { ok: false; error: string };
+  | { ok: true; data: BackgroundResponseData[T] }
+  | { ok: false; error: string; status?: number };
 
 /** Broadcast emitted by the background worker when auth state changes. */
 export interface AuthStateChangedEvent {
@@ -35,6 +39,7 @@ const REQUEST_TYPES: ReadonlySet<string> = new Set<BackgroundRequestType>([
   "AUTH_SIGN_OUT",
   "AUTH_GET_STATE",
   "AUTH_GET_ME",
+  "API_GENERATE",
 ]);
 
 /** Runtime guard: is an unknown value a valid background request? */

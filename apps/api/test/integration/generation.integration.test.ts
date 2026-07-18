@@ -55,10 +55,20 @@ beforeEach(async () => {
     assumptions: ["Long only"],
     warnings: ["Backtest before live use"],
   };
+  await prisma.featureUsage.deleteMany();
   await prisma.generation.deleteMany();
   await prisma.refreshToken.deleteMany();
   await prisma.user.deleteMany();
 });
+
+async function generateOnce(accessToken: string) {
+  return app.inject({
+    method: "POST",
+    url: "/v1/generate",
+    headers: { authorization: `Bearer ${accessToken}` },
+    payload: validBody,
+  });
+}
 
 describe("POST /v1/generate auth", () => {
   it("rejects unauthenticated requests with 401", async () => {
@@ -187,5 +197,92 @@ describe("POST /v1/generate validation & failure handling", () => {
     expect(res.statusCode).toBe(502);
     const body = res.json() as { error: { statusCode: number } };
     expect(body.error.statusCode).toBe(502);
+  });
+});
+
+describe("POST /v1/generate quota enforcement", () => {
+  // testConfig sets QUOTA_FREE_MONTHLY = 3.
+  const FREE_LIMIT = 3;
+
+  it("lets a free user with remaining quota generate successfully", async () => {
+    const { accessToken } = await signInAndGetToken();
+    const res = await generateOnce(accessToken);
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json() as { usage: { requestsRemaining: number } };
+    expect(body.usage.requestsRemaining).toBe(FREE_LIMIT - 1);
+    expect(res.headers["x-ratelimit-limit"]).toBe(String(FREE_LIMIT));
+    expect(res.headers["x-ratelimit-remaining"]).toBe(String(FREE_LIMIT - 1));
+    expect(res.headers["x-ratelimit-reset"]).toBeTruthy();
+  });
+
+  it("decrements usage across successive successful generations", async () => {
+    const { accessToken, userId } = await signInAndGetToken();
+
+    const first = await generateOnce(accessToken);
+    const second = await generateOnce(accessToken);
+
+    expect(
+      (first.json() as { usage: { requestsRemaining: number } }).usage
+        .requestsRemaining,
+    ).toBe(2);
+    expect(
+      (second.json() as { usage: { requestsRemaining: number } }).usage
+        .requestsRemaining,
+    ).toBe(1);
+
+    // DB reflects two consumed credits and two persisted generations.
+    const usage = await prisma.featureUsage.findFirst({ where: { userId } });
+    expect(usage?.count).toBe(2);
+    expect(await prisma.generation.count({ where: { userId } })).toBe(2);
+  });
+
+  it("returns a structured 429 with headers once the limit is reached", async () => {
+    const { accessToken } = await signInAndGetToken();
+    for (let i = 0; i < FREE_LIMIT; i += 1) {
+      expect((await generateOnce(accessToken)).statusCode).toBe(200);
+    }
+
+    const res = await generateOnce(accessToken);
+    expect(res.statusCode).toBe(429);
+    const body = res.json() as {
+      error: { statusCode: number; code?: string; message: string };
+    };
+    expect(body.error.statusCode).toBe(429);
+    expect(body.error.code).toBe("quota_exceeded");
+    expect(res.headers["x-ratelimit-remaining"]).toBe("0");
+  });
+
+  it("does not call the provider when quota is already exhausted", async () => {
+    const { accessToken } = await signInAndGetToken();
+    for (let i = 0; i < FREE_LIMIT; i += 1) {
+      await generateOnce(accessToken);
+    }
+    expect(llm.calls).toBe(FREE_LIMIT);
+
+    const res = await generateOnce(accessToken);
+    expect(res.statusCode).toBe(429);
+    // Provider was NOT invoked for the over-limit request.
+    expect(llm.calls).toBe(FREE_LIMIT);
+  });
+
+  it("does not consume quota when generation fails (usage rolled back)", async () => {
+    const { accessToken, userId } = await signInAndGetToken();
+    llm.shouldThrow = true;
+
+    const res = await generateOnce(accessToken);
+    expect(res.statusCode).toBe(502);
+
+    // The reservation was released; a subsequent success still sees full quota.
+    const usage = await prisma.featureUsage.findFirst({ where: { userId } });
+    expect(usage?.count ?? 0).toBe(0);
+
+    llm.shouldThrow = false;
+    const ok = await generateOnce(accessToken);
+    expect(ok.statusCode).toBe(200);
+    expect(
+      (ok.json() as { usage: { requestsRemaining: number } }).usage
+        .requestsRemaining,
+    ).toBe(FREE_LIMIT - 1);
   });
 });

@@ -7,3 +7,6 @@ pnpm-lock.yaml
 # Product/technical source-of-truth docs — keep as authored
 ai-tradingview-prd.md
 ai-tradingview-tdd.md
+
+# Vendored third-party Cursor skills — keep as published
+.cursor/skills

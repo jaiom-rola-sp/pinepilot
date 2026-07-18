@@ -31,9 +31,26 @@ export const ConfigSchema = z.object({
   OPENAI_MODEL: z.string().min(1).default("gpt-4o-2024-08-06"),
   // Extra attempts when model output fails schema/guardrail validation.
   LLM_MAX_RETRIES: z.coerce.number().int().min(0).max(5).default(1),
+
+  // Usage quotas (B1) — monthly generate limits per plan. Simple, configurable
+  // source of truth until real billing/plan management lands.
+  QUOTA_FREE_MONTHLY: z.coerce.number().int().min(0).default(25),
+  QUOTA_PRO_MONTHLY: z.coerce.number().int().min(0).default(1000),
+  QUOTA_TEAM_MONTHLY: z.coerce.number().int().min(0).default(5000),
 });
 
 export type AppConfig = z.infer<typeof ConfigSchema>;
+
+/** Monthly generate limits keyed by plan, derived from config. */
+export function planLimitsFromConfig(
+  config: AppConfig,
+): Record<"free" | "pro" | "team", number> {
+  return {
+    free: config.QUOTA_FREE_MONTHLY,
+    pro: config.QUOTA_PRO_MONTHLY,
+    team: config.QUOTA_TEAM_MONTHLY,
+  };
+}
 
 /** Error thrown when environment validation fails, with readable details. */
 export class ConfigError extends Error {

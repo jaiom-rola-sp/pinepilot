@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import type { GenerateRequest } from "@pinepilot/shared";
 import { AuthManager } from "../src/lib/auth-manager.js";
 import { InMemoryTokenStore } from "../src/lib/token-store.js";
 import { FakeAuthApi, FakeGoogleProvider } from "./fakes.js";
@@ -142,5 +143,31 @@ describe("AuthManager initialize", () => {
     const result = await ctx.manager.initialize();
     expect(result.status).toBe("signedOut");
     expect(await ctx.store.getRefreshToken()).toBeNull();
+  });
+});
+
+const sampleRequest: GenerateRequest = {
+  prompt: "RSI strategy",
+  taskType: "strategy",
+  pineVersion: "v6",
+  editorContext: { currentCode: "", compilerErrors: [] },
+};
+
+describe("AuthManager generate", () => {
+  it("routes generation through the current access token", async () => {
+    const { manager, api } = setup();
+    await manager.signIn();
+
+    const result = await manager.generate({ ...sampleRequest });
+
+    expect(result.title).toBeTruthy();
+    expect(api.calls.generate).toBe(1);
+    expect(api.lastAccessToken).toBe("access-1");
+  });
+
+  it("rejects and signs out when there is no valid session", async () => {
+    const { manager } = setup();
+    await expect(manager.generate({ ...sampleRequest })).rejects.toThrow();
+    expect(manager.getState().status).toBe("signedOut");
   });
 });

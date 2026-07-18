@@ -9,19 +9,19 @@ import {
 import type { LlmProvider } from "./llm-provider.js";
 import { LlmProviderError } from "./llm-provider.js";
 import { PromptBuilder } from "./prompt-builder.js";
-import { BadGatewayError, UnprocessableEntityError } from "../http-errors.js";
+import type { QuotaSnapshot, UsageService } from "./usage.service.js";
+import {
+  BadGatewayError,
+  UnauthorizedError,
+  UnprocessableEntityError,
+} from "../http-errors.js";
 
 const SCHEMA_NAME = "pine_generation";
-
-/**
- * Placeholder until usage metering (milestone B2). Not real accounting — the
- * contract requires a non-negative integer here.
- */
-const PLACEHOLDER_REQUESTS_REMAINING = 0;
 
 export interface GenerationServiceDeps {
   prisma: PrismaClient;
   provider: LlmProvider;
+  usageService: UsageService;
   promptBuilder?: PromptBuilder;
   /** Extra attempts on schema/guardrail failure (0 = single attempt). */
   maxRetries?: number;
@@ -30,6 +30,12 @@ export interface GenerationServiceDeps {
 export interface GenerateInput {
   userId: string;
   request: GenerateRequest;
+}
+
+/** Generation result plus the quota snapshot after consumption. */
+export interface GenerateOutput {
+  result: GenerateResponse;
+  quota: QuotaSnapshot;
 }
 
 /** Require the correct Pine version marker (defense-in-depth guardrail). */
@@ -41,18 +47,48 @@ function hasPineVersionMarker(code: string, pineVersion: string): boolean {
 export class GenerationService {
   private readonly prisma: PrismaClient;
   private readonly provider: LlmProvider;
+  private readonly usageService: UsageService;
   private readonly promptBuilder: PromptBuilder;
   private readonly maxRetries: number;
 
   constructor(deps: GenerationServiceDeps) {
     this.prisma = deps.prisma;
     this.provider = deps.provider;
+    this.usageService = deps.usageService;
     this.promptBuilder = deps.promptBuilder ?? new PromptBuilder();
     this.maxRetries = deps.maxRetries ?? 1;
   }
 
-  async generate(input: GenerateInput): Promise<GenerateResponse> {
+  async generate(input: GenerateInput): Promise<GenerateOutput> {
     const { request, userId } = input;
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { plan: true },
+    });
+    if (!user) {
+      throw new UnauthorizedError("Unknown user");
+    }
+
+    // Enforce quota BEFORE any provider work. `reserve` atomically consumes one
+    // credit and throws 429 (pre-provider) when the plan limit is exhausted.
+    const quota = await this.usageService.reserve(userId, user.plan);
+
+    try {
+      const result = await this.runGeneration(userId, request, quota);
+      return { result, quota };
+    } catch (err) {
+      // Do not charge for failed generations (provider/validation errors).
+      await this.usageService.release(userId, user.plan);
+      throw err;
+    }
+  }
+
+  private async runGeneration(
+    userId: string,
+    request: GenerateRequest,
+    quota: QuotaSnapshot,
+  ): Promise<GenerateResponse> {
     const prompt = this.promptBuilder.build(request);
 
     let lastIssue = "unknown validation error";
@@ -102,7 +138,7 @@ export class GenerationService {
       // Final server-side validation against the public API contract.
       return GenerateResponseSchema.parse({
         ...content,
-        usage: { requestsRemaining: PLACEHOLDER_REQUESTS_REMAINING },
+        usage: { requestsRemaining: quota.remaining },
       });
     }
 

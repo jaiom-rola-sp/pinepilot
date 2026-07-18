@@ -12,6 +12,7 @@ describe("isBackgroundRequest", () => {
       "AUTH_SIGN_OUT",
       "AUTH_GET_STATE",
       "AUTH_GET_ME",
+      "API_GENERATE",
     ]) {
       expect(isBackgroundRequest({ type })).toBe(true);
     }

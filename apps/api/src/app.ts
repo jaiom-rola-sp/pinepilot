@@ -1,6 +1,7 @@
 import Fastify from "fastify";
 import type { FastifyInstance } from "fastify";
 import type { AppConfig } from "./config.js";
+import { planLimitsFromConfig } from "./config.js";
 import type { PrismaClient } from "./db/client.js";
 import { errorHandler } from "./plugins/error-handler.js";
 import { healthRoutes } from "./routes/health.js";
@@ -17,6 +18,7 @@ import type { LlmProvider } from "./generation/llm-provider.js";
 import { OpenAiProvider } from "./generation/openai-provider.js";
 import { GenerationService } from "./generation/generation.service.js";
 import { generationRoutes } from "./generation/generation.routes.js";
+import { UsageService } from "./generation/usage.service.js";
 
 /**
  * Injectable dependencies. Tests provide a test-database Prisma client, a fake
@@ -72,9 +74,15 @@ export async function buildApp(
     tokenService,
   });
 
+  const usageService = new UsageService({
+    prisma: deps.prisma,
+    planLimits: planLimitsFromConfig(config),
+  });
+
   const generationService = new GenerationService({
     prisma: deps.prisma,
     provider: deps.llmProvider,
+    usageService,
     maxRetries: config.LLM_MAX_RETRIES,
   });
 

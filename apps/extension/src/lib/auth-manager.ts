@@ -1,4 +1,5 @@
-import type { AuthApi } from "./api-client.js";
+import type { GenerateRequest, GenerateResponse } from "@pinepilot/shared";
+import type { BackendApi } from "./api-client.js";
 import { ApiError } from "./api-client.js";
 import type { GoogleSignInProvider } from "./google-auth.js";
 import type { TokenStore } from "./token-store.js";
@@ -7,7 +8,7 @@ import { INITIAL_AUTH_STATE } from "./types.js";
 
 export interface AuthManagerDeps {
   provider: GoogleSignInProvider;
-  api: AuthApi;
+  api: BackendApi;
   store: TokenStore;
   /** Injectable clock for deterministic expiry tests. */
   now?: () => number;
@@ -90,6 +91,24 @@ export class AuthManager {
   async getMe(): Promise<AuthUser> {
     const accessToken = await this.ensureAccessToken();
     return this.deps.api.getMe(accessToken);
+  }
+
+  /**
+   * Authenticated Pine generation, routed through the background worker. Ensures
+   * a valid access token first; on a rejected token, clears the session so the
+   * UI reflects the expired state via the existing auth path.
+   */
+  async generate(request: GenerateRequest): Promise<GenerateResponse> {
+    const accessToken = await this.ensureAccessToken();
+    try {
+      return await this.deps.api.generate(accessToken, request);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        await this.clearSession();
+        this.setState({ status: "signedOut", user: null, error: null });
+      }
+      throw err;
+    }
   }
 
   /**

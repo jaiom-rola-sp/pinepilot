@@ -1,9 +1,12 @@
+import type { GenerateResponse } from "@pinepilot/shared";
 import type { AuthManager } from "./auth-manager.js";
+import { ApiError } from "./api-client.js";
 import type { BackgroundRequest } from "./messages.js";
 import type { AuthState, AuthUser } from "./types.js";
 
 export type AnyBackgroundResponse =
-  { ok: true; data: AuthState | AuthUser } | { ok: false; error: string };
+  | { ok: true; data: AuthState | AuthUser | GenerateResponse }
+  | { ok: false; error: string; status?: number };
 
 /**
  * Pure dispatcher from a typed background request to a response. Kept separate
@@ -23,6 +26,8 @@ export async function handleBackgroundRequest(
         return { ok: true, data: manager.getState() };
       case "AUTH_GET_ME":
         return { ok: true, data: await manager.getMe() };
+      case "API_GENERATE":
+        return { ok: true, data: await manager.generate(request.request) };
       default: {
         const _exhaustive: never = request;
         return {
@@ -35,6 +40,9 @@ export async function handleBackgroundRequest(
     return {
       ok: false,
       error: err instanceof Error ? err.message : "Unexpected error",
+      // Surface HTTP status (e.g. 401/402/429) so the UI can distinguish
+      // quota/usage and expired-session failures.
+      status: err instanceof ApiError ? err.status : undefined,
     };
   }
 }

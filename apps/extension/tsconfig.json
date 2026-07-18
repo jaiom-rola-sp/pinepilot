@@ -6,6 +6,11 @@
     "types": ["chrome", "node"],
     "rootDir": "."
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "test/**/*.ts"],
+  "include": [
+    ".plasmo/index.d.ts",
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "test/**/*.ts"
+  ],
   "exclude": ["node_modules", "dist", ".plasmo", "build"]
 }

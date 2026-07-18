@@ -21,6 +21,15 @@ describe("loadConfig", () => {
     expect(config.HOST).toBe("0.0.0.0");
     expect(config.PORT).toBe(3000);
     expect(config.LOG_LEVEL).toBe("info");
+    // Quota defaults (B1)
+    expect(config.QUOTA_FREE_MONTHLY).toBe(25);
+    expect(config.QUOTA_PRO_MONTHLY).toBe(1000);
+    expect(config.QUOTA_TEAM_MONTHLY).toBe(5000);
+  });
+
+  it("coerces and applies custom quota limits", () => {
+    const config = loadConfig({ ...validEnv, QUOTA_FREE_MONTHLY: "7" });
+    expect(config.QUOTA_FREE_MONTHLY).toBe(7);
   });
 
   it("coerces PORT from a string to a number", () => {

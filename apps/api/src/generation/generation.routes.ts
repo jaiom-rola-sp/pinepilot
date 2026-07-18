@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from "fastify";
 import { GenerateRequestSchema } from "@pinepilot/shared";
 import type { GenerationService } from "./generation.service.js";
+import { buildRateLimitHeaders } from "./usage.service.js";
 import { BadRequestError, UnauthorizedError } from "../http-errors.js";
 
 export interface GenerationRoutesOptions {
@@ -29,10 +30,20 @@ export const generationRoutes: FastifyPluginAsync<
         throw new BadRequestError(message);
       }
 
-      const result = await generationService.generate({
+      const { result, quota } = await generationService.generate({
         userId: principal.userId,
         request: parsed.data,
       });
+
+      const headers = buildRateLimitHeaders(
+        quota.limit,
+        quota.remaining,
+        quota.resetAt,
+      );
+      for (const [name, value] of Object.entries(headers)) {
+        void reply.header(name, value);
+      }
+
       return reply.status(200).send(result);
     },
   );

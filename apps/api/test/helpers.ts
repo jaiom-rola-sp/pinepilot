@@ -30,6 +30,10 @@ export const testConfig: AppConfig = {
   OPENAI_API_KEY: "test-openai-key",
   OPENAI_MODEL: "gpt-4o-2024-08-06",
   LLM_MAX_RETRIES: 1,
+  // Small limits keep quota-enforcement tests fast and differentiated.
+  QUOTA_FREE_MONTHLY: 3,
+  QUOTA_PRO_MONTHLY: 5,
+  QUOTA_TEAM_MONTHLY: 10,
 };
 
 const VALID_PINE_CONTENT = {
