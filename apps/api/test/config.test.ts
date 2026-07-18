@@ -5,6 +5,8 @@ const validEnv = {
   NODE_ENV: "test",
   DATABASE_URL: "postgresql://user:pass@localhost:5432/db",
   REDIS_URL: "redis://localhost:6379",
+  GOOGLE_CLIENT_ID: "test-client-id",
+  JWT_ACCESS_SECRET: "a-sufficiently-long-secret",
 } satisfies NodeJS.ProcessEnv;
 
 describe("loadConfig", () => {
@@ -48,5 +50,16 @@ describe("loadConfig", () => {
     expect(() => loadConfig({ ...validEnv, NODE_ENV: "staging" })).toThrow(
       ConfigError,
     );
+  });
+
+  it("throws ConfigError when JWT_ACCESS_SECRET is too short", () => {
+    expect(() =>
+      loadConfig({ ...validEnv, JWT_ACCESS_SECRET: "short" }),
+    ).toThrow(ConfigError);
+  });
+
+  it("throws ConfigError when GOOGLE_CLIENT_ID is missing", () => {
+    const { GOOGLE_CLIENT_ID: _omit, ...withoutClientId } = validEnv;
+    expect(() => loadConfig(withoutClientId)).toThrow(ConfigError);
   });
 });

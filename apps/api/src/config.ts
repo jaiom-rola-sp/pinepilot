@@ -17,6 +17,14 @@ export const ConfigSchema = z.object({
     .default("info"),
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
   REDIS_URL: z.string().min(1, "REDIS_URL is required"),
+
+  // Auth (A1)
+  GOOGLE_CLIENT_ID: z.string().min(1, "GOOGLE_CLIENT_ID is required"),
+  JWT_ACCESS_SECRET: z
+    .string()
+    .min(16, "JWT_ACCESS_SECRET must be at least 16 characters"),
+  ACCESS_TOKEN_TTL_SECONDS: z.coerce.number().int().positive().default(900), // 15 minutes
+  REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().positive().default(30),
 });
 
 export type AppConfig = z.infer<typeof ConfigSchema>;
