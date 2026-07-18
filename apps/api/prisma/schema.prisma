@@ -1,0 +1,150 @@
+// PinePilot data model — core entities from the TDD.
+// DB integration/migrations are wired in a later milestone; this schema is
+// authored and validated (`pnpm --filter api prisma:validate`) as part of F2.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Plan {
+  free
+  pro
+  team
+}
+
+enum UserStatus {
+  active
+  suspended
+  deleted
+}
+
+enum TaskType {
+  indicator
+  strategy
+}
+
+enum CompileStatus {
+  unknown
+  success
+  error
+}
+
+enum FeedbackRating {
+  up
+  down
+}
+
+enum SubscriptionStatus {
+  active
+  trialing
+  past_due
+  canceled
+  incomplete
+}
+
+model User {
+  id           String     @id @default(cuid())
+  email        String     @unique
+  authProvider String     @map("auth_provider")
+  plan         Plan       @default(free)
+  status       UserStatus @default(active)
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+
+  workspaces    Workspace[]
+  generations   Generation[]
+  feedback      Feedback[]
+  subscriptions Subscription[]
+  featureUsage  FeatureUsage[]
+
+  @@map("users")
+}
+
+model Workspace {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  name        String
+  preferences Json     @default("{}")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  generations Generation[]
+
+  @@index([userId])
+  @@map("workspaces")
+}
+
+model Generation {
+  id            String        @id @default(cuid())
+  userId        String        @map("user_id")
+  workspaceId   String?       @map("workspace_id")
+  prompt        String
+  taskType      TaskType      @map("task_type")
+  pineVersion   String        @map("pine_version")
+  outputCode    String        @map("output_code")
+  outputSummary String        @map("output_summary")
+  tokenCost     Int           @default(0) @map("token_cost")
+  compileStatus CompileStatus @default(unknown) @map("compile_status")
+  createdAt     DateTime      @default(now()) @map("created_at")
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace Workspace? @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+  feedback  Feedback[]
+
+  @@index([userId])
+  @@index([workspaceId])
+  @@map("generations")
+}
+
+model Feedback {
+  id           String         @id @default(cuid())
+  generationId String         @map("generation_id")
+  userId       String         @map("user_id")
+  rating       FeedbackRating
+  comment      String?
+  createdAt    DateTime       @default(now()) @map("created_at")
+
+  generation Generation @relation(fields: [generationId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([generationId])
+  @@map("feedback")
+}
+
+model Subscription {
+  id                   String             @id @default(cuid())
+  userId               String             @map("user_id")
+  stripeCustomerId     String             @map("stripe_customer_id")
+  stripeSubscriptionId String             @unique @map("stripe_subscription_id")
+  plan                 Plan
+  status               SubscriptionStatus
+  renewalAt            DateTime?          @map("renewal_at")
+  createdAt            DateTime           @default(now()) @map("created_at")
+  updatedAt            DateTime           @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("subscriptions")
+}
+
+model FeatureUsage {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  metricType  String   @map("metric_type")
+  count       Int      @default(0)
+  periodStart DateTime @map("period_start")
+  periodEnd   DateTime @map("period_end")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, metricType, periodStart])
+  @@index([userId])
+  @@map("feature_usage")
+}
