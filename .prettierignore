@@ -1,0 +1,9 @@
+node_modules
+dist
+build
+coverage
+pnpm-lock.yaml
+
+# Product/technical source-of-truth docs — keep as authored
+ai-tradingview-prd.md
+ai-tradingview-tdd.md
