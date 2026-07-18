@@ -25,6 +25,12 @@ export const ConfigSchema = z.object({
     .min(16, "JWT_ACCESS_SECRET must be at least 16 characters"),
   ACCESS_TOKEN_TTL_SECONDS: z.coerce.number().int().positive().default(900), // 15 minutes
   REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().positive().default(30),
+
+  // Generation / LLM (G1)
+  OPENAI_API_KEY: z.string().min(1, "OPENAI_API_KEY is required"),
+  OPENAI_MODEL: z.string().min(1).default("gpt-4o-2024-08-06"),
+  // Extra attempts when model output fails schema/guardrail validation.
+  LLM_MAX_RETRIES: z.coerce.number().int().min(0).max(5).default(1),
 });
 
 export type AppConfig = z.infer<typeof ConfigSchema>;

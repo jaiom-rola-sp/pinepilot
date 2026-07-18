@@ -1,17 +1,3 @@
-/** Error carrying an HTTP status code, understood by the global error handler. */
-export class HttpError extends Error {
-  constructor(
-    public readonly statusCode: number,
-    message: string,
-  ) {
-    super(message);
-    this.name = "HttpError";
-  }
-}
-
-export class UnauthorizedError extends HttpError {
-  constructor(message = "Unauthorized") {
-    super(401, message);
-    this.name = "UnauthorizedError";
-  }
-}
+// Canonical HTTP error types live in ../http-errors. Re-exported here for the
+// auth module's existing imports.
+export { HttpError, UnauthorizedError } from "../http-errors.js";

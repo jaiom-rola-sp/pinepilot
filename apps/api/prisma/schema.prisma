@@ -104,10 +104,15 @@ model Generation {
   prompt        String
   taskType      TaskType      @map("task_type")
   pineVersion   String        @map("pine_version")
+  outputTitle   String        @map("output_title")
   outputCode    String        @map("output_code")
   outputSummary String        @map("output_summary")
   tokenCost     Int           @default(0) @map("token_cost")
   compileStatus CompileStatus @default(unknown) @map("compile_status")
+  // Analytics/versioning metadata (kept lightweight; not usage metering).
+  provider      String        @map("provider")
+  model         String        @map("model")
+  promptVersion String        @map("prompt_version")
   createdAt     DateTime      @default(now()) @map("created_at")
 
   user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)

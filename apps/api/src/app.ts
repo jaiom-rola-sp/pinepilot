@@ -13,15 +13,20 @@ import { TokenService } from "./auth/token.service.js";
 import { AuthService } from "./auth/auth.service.js";
 import { authPlugin } from "./auth/auth.plugin.js";
 import { authRoutes } from "./auth/auth.routes.js";
+import type { LlmProvider } from "./generation/llm-provider.js";
+import { OpenAiProvider } from "./generation/openai-provider.js";
+import { GenerationService } from "./generation/generation.service.js";
+import { generationRoutes } from "./generation/generation.routes.js";
 
 /**
- * Injectable dependencies. Tests provide a test-database Prisma client and a
- * fake Google verifier; production wiring builds real implementations from
- * config via {@link buildDefaultDeps}.
+ * Injectable dependencies. Tests provide a test-database Prisma client, a fake
+ * Google verifier, and a fake LLM provider; production wiring builds real
+ * implementations from config via {@link buildDefaultDeps}.
  */
 export interface AppDeps {
   prisma: PrismaClient;
   googleVerifier: GoogleTokenVerifier;
+  llmProvider: LlmProvider;
 }
 
 export function buildDefaultDeps(
@@ -31,6 +36,10 @@ export function buildDefaultDeps(
   return {
     prisma,
     googleVerifier: new GoogleOAuthVerifier(config.GOOGLE_CLIENT_ID),
+    llmProvider: new OpenAiProvider({
+      apiKey: config.OPENAI_API_KEY,
+      model: config.OPENAI_MODEL,
+    }),
   };
 }
 
@@ -63,11 +72,18 @@ export async function buildApp(
     tokenService,
   });
 
+  const generationService = new GenerationService({
+    prisma: deps.prisma,
+    provider: deps.llmProvider,
+    maxRetries: config.LLM_MAX_RETRIES,
+  });
+
   await app.register(authPlugin, { tokenService });
 
   await app.register(healthRoutes);
   await app.register(authRoutes, { authService });
   await app.register(meRoutes, { authService });
+  await app.register(generationRoutes, { generationService });
 
   return app;
 }

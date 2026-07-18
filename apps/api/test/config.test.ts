@@ -7,6 +7,7 @@ const validEnv = {
   REDIS_URL: "redis://localhost:6379",
   GOOGLE_CLIENT_ID: "test-client-id",
   JWT_ACCESS_SECRET: "a-sufficiently-long-secret",
+  OPENAI_API_KEY: "test-openai-key",
 } satisfies NodeJS.ProcessEnv;
 
 describe("loadConfig", () => {

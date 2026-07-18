@@ -5,7 +5,7 @@ import { createPrismaClient } from "../../src/db/client.js";
 import type { PrismaClient } from "../../src/db/client.js";
 import { TokenService } from "../../src/auth/token.service.js";
 import type { AuthResponse, UserDto } from "../../src/auth/auth.schemas.js";
-import { FakeGoogleVerifier, testConfig } from "../helpers.js";
+import { FakeGoogleVerifier, FakeLlmProvider, testConfig } from "../helpers.js";
 
 const prisma: PrismaClient = createPrismaClient(testConfig.DATABASE_URL);
 const google = new FakeGoogleVerifier();
@@ -22,7 +22,11 @@ async function login(idToken = "valid"): Promise<AuthResponse> {
 }
 
 beforeAll(async () => {
-  app = await buildApp(testConfig, { prisma, googleVerifier: google });
+  app = await buildApp(testConfig, {
+    prisma,
+    googleVerifier: google,
+    llmProvider: new FakeLlmProvider(),
+  });
   await app.ready();
 });
 
