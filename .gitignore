@@ -8,6 +8,10 @@ build/
 out/
 *.tsbuildinfo
 
+# Plasmo (extension) generated output
+.plasmo/
+apps/extension/build/
+
 # Env / secrets
 .env
 .env.*

@@ -5,6 +5,9 @@ module.exports = {
   parserOptions: {
     ecmaVersion: 2022,
     sourceType: "module",
+    ecmaFeatures: {
+      jsx: true,
+    },
   },
   plugins: ["@typescript-eslint"],
   extends: [
@@ -14,9 +17,17 @@ module.exports = {
   ],
   env: {
     node: true,
+    browser: true,
     es2022: true,
   },
-  ignorePatterns: ["node_modules", "dist", "build", "coverage", "**/*.cjs"],
+  ignorePatterns: [
+    "node_modules",
+    "dist",
+    "build",
+    "coverage",
+    ".plasmo",
+    "**/*.cjs",
+  ],
   rules: {
     "@typescript-eslint/no-unused-vars": [
       "error",

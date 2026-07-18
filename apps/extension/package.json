@@ -1,0 +1,38 @@
+{
+  "name": "@pinepilot/extension",
+  "displayName": "PinePilot",
+  "version": "0.0.0",
+  "private": true,
+  "description": "PinePilot — AI Pine Script assistant for TradingView.",
+  "scripts": {
+    "dev": "plasmo dev",
+    "build": "plasmo build",
+    "package": "plasmo package",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@pinepilot/shared": "workspace:*",
+    "plasmo": "^0.88.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.270",
+    "@types/node": "^20.14.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "typescript": "^5.5.4",
+    "vitest": "^2.0.5"
+  },
+  "manifest": {
+    "permissions": [
+      "identity",
+      "storage"
+    ],
+    "host_permissions": [
+      "http://localhost:3000/*",
+      "https://*.tradingview.com/*"
+    ]
+  }
+}
